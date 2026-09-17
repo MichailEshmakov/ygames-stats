@@ -1,0 +1,29 @@
+# Клодовские доки и рабочие заметки — только локально
+CLAUDE.md
+.claude-docs/
+.claude/
+
+# Зависимости и сборка
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Окружение и секреты
+.env
+.env.*
+!.env.example
+
+# Системное
+.DS_Store
+Thumbs.db
+*.log
+
+# Выгрузки каталога: пересобираются командой npm run collect
+/public/data/*.json
+/data/catalog-raw.ndjson
+/data/collect.log
+
+# Снимки числа оценок (data/history/) НЕ игнорируем: только по ним
+# считается прирост за 30 дней, восстановить их задним числом нельзя.
