@@ -9,8 +9,14 @@ const SCRIPTS: Record<Target, string> = {
   delta: 'scripts/collect-delta.mjs',
 };
 
-interface RunState {
+interface Job {
   target: Target;
+  args: string[];
+}
+
+interface RunState {
+  plan: Job[];
+  step: number;
   startedAt: number;
   lines: string[];
   process: ChildProcess | null;
@@ -26,12 +32,13 @@ interface RunState {
 function collectorApi(): Plugin {
   let current: RunState | null = null;
 
-  const start = (target: Target, args: string[]) => {
-    const child = spawn(process.execPath, [SCRIPTS[target], ...args], {
+  const runStep = (state: RunState) => {
+    const job = state.plan[state.step];
+    const child = spawn(process.execPath, [SCRIPTS[job.target], ...job.args], {
       cwd: process.cwd(),
       env: { ...process.env, FORCE_COLOR: '0' },
     });
-    const state: RunState = { target, startedAt: Date.now(), lines: [], process: child, exitCode: null };
+    state.process = child;
 
     const absorb = (chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split('\n')) {
@@ -44,20 +51,40 @@ function collectorApi(): Plugin {
     child.stdout?.on('data', absorb);
     child.stderr?.on('data', absorb);
     child.on('close', (code) => {
-      state.exitCode = code ?? 0;
       state.process = null;
+      // Следующий шаг запускаем, только если предыдущий дошёл до конца:
+      // считать прирост поверх недособранного каталога нечего.
+      if (code === 0 && state.step + 1 < state.plan.length) {
+        state.step += 1;
+        runStep(state);
+        return;
+      }
+      state.exitCode = code ?? 0;
     });
+  };
 
+  const start = (plan: Job[]) => {
+    const state: RunState = {
+      plan,
+      step: 0,
+      startedAt: Date.now(),
+      lines: [],
+      process: null,
+      exitCode: null,
+    };
+    runStep(state);
     current = state;
     return state;
   };
 
   const statusOf = (state: RunState | null) =>
     state === null
-      ? { running: false, target: null, lines: [], exitCode: null, startedAt: null }
+      ? { running: false, target: null, step: 0, steps: 0, lines: [], exitCode: null, startedAt: null }
       : {
           running: state.process !== null,
-          target: state.target,
+          target: state.plan[state.step].target,
+          step: state.step + 1,
+          steps: state.plan.length,
           startedAt: state.startedAt,
           lines: state.lines.slice(-12),
           exitCode: state.exitCode,
@@ -78,19 +105,17 @@ function collectorApi(): Plugin {
 
         if (request.method !== 'POST') return send(405, { error: 'Только GET и POST' });
         if (current?.process) {
-          return send(409, { error: `Уже идёт сбор: ${current.target}` });
+          return send(409, { error: 'Сбор уже идёт' });
         }
 
-        const target = url.searchParams.get('target');
-        if (target !== 'catalog' && target !== 'delta') {
-          return send(400, { error: 'target должен быть catalog или delta' });
-        }
-        // Описания игр сборщик берёт из прошлого каталога; перечитать их
-        // целиком просим только по явной галочке на странице.
-        const args = target === 'catalog' && url.searchParams.get('details') === 'refresh'
-          ? ['--refresh-details']
-          : [];
-        return send(200, statusOf(start(target, args)));
+        // Описания игр сборщик берёт из прошлого каталога: они почти не
+        // меняются, а их перечитывание удлиняет обход.
+        const details = url.searchParams.get('details') === '1';
+        const plan: Job[] = [
+          { target: 'catalog', args: details ? ['--refresh-details'] : [] },
+          { target: 'delta', args: [] },
+        ];
+        return send(200, statusOf(start(plan)));
       });
     },
   };
@@ -98,5 +123,7 @@ function collectorApi(): Plugin {
 
 export default defineConfig({
   plugins: [react(), collectorApi()],
-  server: { open: true },
+  // localhost на машине резолвится в ::1, и Vite вешается только на IPv6-петлю —
+  // браузер при этом стучится в 127.0.0.1 и получает отказ. Адрес задан явно.
+  server: { host: '127.0.0.1', open: true },
 });

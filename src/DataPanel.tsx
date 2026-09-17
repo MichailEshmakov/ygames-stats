@@ -6,6 +6,8 @@ export type CollectTarget = 'catalog' | 'delta';
 interface CollectStatus {
   running: boolean;
   target: CollectTarget | null;
+  step: number;
+  steps: number;
   startedAt: number | null;
   lines: string[];
   exitCode: number | null;
@@ -40,6 +42,7 @@ export function DataPanel({
   const [status, setStatus] = useState<CollectStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshDetails, setRefreshDetails] = useState(false);
+  const [dataSize, setDataSize] = useState<number | null>(null);
   const wasRunning = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -53,6 +56,18 @@ export function DataPanel({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Сколько нальётся в этот раз, заранее неизвестно — берём вес прошлого
+  // сбора: от прогона к прогону каталог меняется на доли процента.
+  useEffect(() => {
+    let cancelled = false;
+    void measureData().then((size) => {
+      if (!cancelled) setDataSize(size);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedAt]);
 
   useEffect(() => {
     if (!status?.running) return;
@@ -68,11 +83,11 @@ export function DataPanel({
     }
   }, [status, onReload]);
 
-  const startCollect = async (target: CollectTarget) => {
+  const startCollect = async () => {
     setError(null);
-    const query =
-      target === 'catalog' && refreshDetails ? '?target=catalog&details=refresh' : `?target=${target}`;
-    const response = await fetch(`/api/collect${query}`, { method: 'POST' });
+    const response = await fetch(`/api/collect${refreshDetails ? '?details=1' : ''}`, {
+      method: 'POST',
+    });
     const body = await response.json();
     if (!response.ok) {
       // Кнопка живёт только в dev-режиме: в собранной сборке отвечать некому.
@@ -119,14 +134,9 @@ export function DataPanel({
         </div>
 
         <div className="data__actions">
-          <button
-            className="button"
-            type="button"
-            disabled={running}
-            onClick={() => void startCollect('catalog')}
-          >
-            Загрузить каталог
-            <span className="button__hint">{refreshDetails ? '~20 минут' : '~16 минут'}</span>
+          <button className="button" type="button" disabled={running} onClick={() => void startCollect()}>
+            Загрузить данные
+            {dataSize !== null && <span className="button__hint">≈ {formatSize(dataSize)}</span>}
           </button>
           <label className="check">
             <input
@@ -135,28 +145,21 @@ export function DataPanel({
               disabled={running}
               onChange={(event) => setRefreshDetails(event.target.checked)}
             />
-            Перечитать описания
+            <span className="check__text">
+              Перечитать описания
+              <span className="check__hint">описания и «как играть» — меняются редко</span>
+            </span>
           </label>
-          <button
-            className="button"
-            type="button"
-            disabled={running}
-            onClick={() => void startCollect('delta')}
-          >
-            Загрузить прирост
-            <span className="button__hint">~36 минут</span>
-          </button>
-          <button className="button" type="button" disabled={running} onClick={onReload}>
-            Перечитать файлы
-            <span className="button__hint">обновить копию в браузере</span>
-          </button>
         </div>
       </div>
 
       {outdated && (
         <p className="note note--warning">
-          На диске лежат более свежие файлы — нажмите «Перечитать файлы», чтобы обновить копию
-          в браузере.
+          На диске лежат более свежие файлы.{' '}
+          <button className="link" type="button" onClick={onReload}>
+            Перечитать их
+          </button>{' '}
+          и обновить копию в браузере.
         </p>
       )}
 
@@ -173,7 +176,7 @@ export function DataPanel({
         <div className="progress">
           <p className="progress__title">
             {status.running
-              ? `Идёт сбор: ${TARGET_TITLES[status.target ?? 'catalog']}${elapsed(status.startedAt)}`
+              ? `Идёт сбор${stepOf(status)}: ${TARGET_TITLES[status.target ?? 'catalog']}${elapsed(status.startedAt)}`
               : status.exitCode === 0
                 ? 'Сбор завершён, данные обновлены.'
                 : `Сбор прерван (код ${status.exitCode}).`}
@@ -191,6 +194,40 @@ function DataLine({ title, value }: { title: string; value: string }) {
       <span className="data__label">{title}:</span> {value}
     </p>
   );
+}
+
+const DATA_FILES = [
+  '/data/catalog.json',
+  '/data/delta30.json',
+  '/data/tags.json',
+  '/data/categories.json',
+];
+
+async function measureData(): Promise<number | null> {
+  const sizes = await Promise.all(DATA_FILES.map(fileSize));
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  return total > 0 ? total : null;
+}
+
+async function fileSize(url: string): Promise<number> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    const length = response.ok ? response.headers.get('content-length') : null;
+    return length ? Number(length) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function formatSize(bytes: number) {
+  const megabytes = bytes / 1024 / 1024;
+  return megabytes < 10
+    ? `${megabytes.toFixed(1).replace('.', ',')} МБ`
+    : `${Math.round(megabytes)} МБ`;
+}
+
+function stepOf(status: CollectStatus) {
+  return status.steps > 1 ? ` (шаг ${status.step} из ${status.steps})` : '';
 }
 
 function formatDate(value: string) {

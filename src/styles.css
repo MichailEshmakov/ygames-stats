@@ -39,7 +39,7 @@ body {
 
 .search {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px 20px;
   padding: 20px;
   background: var(--surface);
@@ -288,10 +288,6 @@ body {
 }
 
 @media (max-width: 720px) {
-  .search {
-    grid-template-columns: 1fr;
-  }
-
   .games__number {
     width: 90px;
   }
@@ -324,7 +320,8 @@ body {
 
 .data__actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  align-items: center;
 }
 
 .button {
@@ -432,9 +429,29 @@ body {
 
 .check {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  max-width: 120px;
+  max-width: 200px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.check__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check__hint {
+  opacity: 0.7;
+}
+
+.link {
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }

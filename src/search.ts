@@ -19,8 +19,6 @@ export interface SearchQuery {
   keywords: string;
   /** По каким полям игры искать ключевые слова. */
   fields: SearchField[];
-  /** Отдельная строка — ищется только в названии. */
-  title: string;
   keywordMode: KeywordMode;
 }
 
@@ -75,11 +73,17 @@ const OPERATORS: Record<string, 'and' | 'or' | 'not'> = {
 
 const QUOTES: Record<string, string> = { '"': '"', '«': '»', '“': '”' };
 
+/** Звёздочка в конце слова: продолжение любой длины вместо обычных трёх букв. */
+const PREFIX_MARK = '*';
+
 function tokenize(input: string): Token[] {
   const tokens: Token[] = [];
   const pushTerm = (raw: string) => {
-    const text = normalize(raw).trim();
-    if (text) tokens.push({ kind: 'term', text });
+    // Нормализация выбрасывает все не-буквы, поэтому звёздочку снимаем до неё
+    // и возвращаем обратно: дальше по ней узнаётся поиск по началу слова.
+    const prefix = raw.endsWith(PREFIX_MARK);
+    const text = normalize(prefix ? raw.slice(0, -1) : raw).trim();
+    if (text) tokens.push({ kind: 'term', text: prefix ? text + PREFIX_MARK : text });
   };
 
   let position = 0;
@@ -135,6 +139,7 @@ function tokenize(input: string): Token[] {
       position += 1;
       continue;
     }
+    if (input[end] === PREFIX_MARK) end += 1;
     const word = input.slice(position, end);
     const operator = OPERATORS[word.toLowerCase().replace(/ё/g, 'е')];
     if (operator) tokens.push({ kind: operator });
@@ -263,17 +268,11 @@ function patternFor(term: string): RegExp {
 }
 
 function matchesKeyword(haystack: string, term: string): boolean {
+  // Корень со звёздочкой не подрезаем окончаниями: раз его написали явно,
+  // искать надо ровно его, иначе «ферма*» неожиданно ловило бы «фермер».
+  if (term.endsWith(PREFIX_MARK)) return haystack.includes(` ${term.slice(0, -1)}`);
   if (term.includes(' ')) return haystack.includes(` ${term} `);
   return patternFor(term).test(haystack);
-}
-
-/**
- * В поле «в названии» слово ищется по началу, без ограничения на длину
- * хвоста: там набирают кусок названия («симул» → «Симулятор»), а лишние
- * попадания видны глазом в той же колонке.
- */
-function matchesTitlePart(haystack: string, term: string): boolean {
-  return haystack.includes(` ${term.includes(' ') ? term : stem(term)}`);
 }
 
 interface IndexedGame {
@@ -313,20 +312,13 @@ export function buildIndex(games: Game[], dictionaries: Dictionaries): IndexedGa
 
 export function search(index: IndexedGame[], query: SearchQuery): Game[] {
   const keywordQuery = parseQuery(query.keywords, query.keywordMode);
-  // В поле «в названии» несколько слов подряд — это кусок одного названия,
-  // поэтому там режим не спрашиваем: без оператора всегда «и».
-  const titleQuery = parseQuery(query.title, 'all');
-  if (!keywordQuery && !titleQuery) return index.map((entry) => entry.game);
+  if (!keywordQuery) return index.map((entry) => entry.game);
 
   return index
-    .filter(({ texts }) => {
-      if (titleQuery && !evaluate(titleQuery, (term) => matchesTitlePart(texts.title, term))) {
-        return false;
-      }
-      if (!keywordQuery) return true;
-      return evaluate(keywordQuery, (term) =>
+    .filter(({ texts }) =>
+      evaluate(keywordQuery, (term) =>
         query.fields.some((field) => matchesKeyword(texts[field], term)),
-      );
-    })
+      ),
+    )
     .map((entry) => entry.game);
 }

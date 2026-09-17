@@ -18,7 +18,6 @@ export function App() {
   const [outdated, setOutdated] = useState(false);
   const [storageFailed, setStorageFailed] = useState(false);
   const [keywords, setKeywords] = useState('');
-  const [title, setTitle] = useState('');
   const [keywordMode, setKeywordMode] = useState<KeywordMode>('all');
   // Описание и «как играть» по умолчанию выключены: там пишут что угодно,
   // и попадание по ним мало говорит о том, про что игра.
@@ -125,8 +124,8 @@ export function App() {
   const index = useMemo(() => buildIndex(games, dictionaries), [games, dictionaries]);
 
   const found = useMemo(
-    () => search(index, { keywords, title, keywordMode, fields }),
-    [index, keywords, title, keywordMode, fields],
+    () => search(index, { keywords, keywordMode, fields }),
+    [index, keywords, keywordMode, fields],
   );
 
   const sorted = useMemo(() => sortGames(found, sortField), [found, sortField]);
@@ -135,7 +134,7 @@ export function App() {
     <main className="page">
       <header className="page__header">
         <h1 className="page__title">Аналитика Яндекс Игр</h1>
-        <p className="page__subtitle">Поиск игр каталога по ключевым словам и названию</p>
+        <p className="page__subtitle">Поиск игр каталога по ключевым словам</p>
       </header>
 
       <DataPanel
@@ -152,7 +151,7 @@ export function App() {
 
       {!loading && !catalog && (
         <p className="note">
-          Каталога ещё нет. Нажмите «Загрузить каталог» — или соберите его в терминале
+          Каталога ещё нет. Нажмите «Загрузить данные» — или соберите его в терминале
           командой <code>npm run collect</code>.
         </p>
       )}
@@ -171,19 +170,8 @@ export function App() {
               <span className="field__hint">Ищем по {enabledFields(fields)}.</span>
             </label>
 
-            <label className="field">
-              <span className="field__label">В названии</span>
-              <input
-                className="field__input"
-                placeholder="маджонг"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-              <span className="field__hint">Только по названию игры.</span>
-            </label>
-
             <fieldset className="modes">
-              <legend className="field__label">Где искать ключевые слова</legend>
+              <legend className="field__label">Где искать</legend>
               {SEARCH_FIELDS.map(({ id, label }) => (
                 <label className="mode" key={id}>
                   <input
