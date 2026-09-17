@@ -133,8 +133,24 @@ export function App() {
   return (
     <main className="page">
       <header className="page__header">
-        <h1 className="page__title">Аналитика Яндекс Игр</h1>
-        <p className="page__subtitle">Поиск игр каталога по ключевым словам</p>
+        <div>
+          <h1 className="page__title">Аналитика Яндекс Игр</h1>
+          <p className="page__subtitle">Поиск игр каталога по ключевым словам</p>
+        </div>
+        <a
+          className="telegram"
+          href="https://t.me/MikhailAllowsHimself"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          <svg className="telegram__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M9.04 15.47 8.7 20.2c.48 0 .69-.2.94-.45l2.26-2.15 4.68 3.42c.86.47 1.47.22 1.7-.79l3.08-14.4c.3-1.26-.46-1.75-1.29-1.44L1.9 9.76c-1.23.48-1.21 1.17-.21 1.48l4.6 1.43 10.7-6.72c.5-.33.96-.15.58.18z"
+            />
+          </svg>
+          Телеграм
+        </a>
       </header>
 
       <DataPanel

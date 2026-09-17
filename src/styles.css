@@ -27,6 +27,13 @@ body {
   padding: 32px 16px 64px;
 }
 
+.page__header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .page__title {
   margin: 0;
   font-size: 26px;
@@ -35,6 +42,29 @@ body {
 .page__subtitle {
   margin: 4px 0 28px;
   color: var(--muted);
+}
+
+.telegram {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.telegram:hover {
+  border-color: var(--accent);
+}
+
+.telegram__icon {
+  width: 18px;
+  height: 18px;
+  color: #29a9eb;
 }
 
 .search {
